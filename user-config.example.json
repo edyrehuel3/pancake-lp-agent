@@ -1,0 +1,15 @@
+{
+  "deployAmount": 100,
+  "maxPositions": 3,
+  "minTvl": 50000,
+  "deployToken": "BNB",
+  "minFeeTvlRatio": 0.0001,
+  "minVolume24h": 10000,
+  "minTxCount24h": 100,
+  "feeTiers": [500, 2500],
+  "stopLossPct": -20,
+  "takeProfitPct": 10,
+  "outOfRangeWaitMinutes": 30,
+  "managementIntervalMin": 10,
+  "screeningIntervalMin": 30
+}

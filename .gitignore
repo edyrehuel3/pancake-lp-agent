@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.raw
+.envrypt
+user-config.json
+state.json
+decision-log.json
+lessons.json
+pool-memory.json
+smart-wallets.json
+token-blacklist.json
+discord-signals.json
+*.log
