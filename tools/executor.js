@@ -15,8 +15,8 @@ import {
 import { getTokenInfoTool, getTokenHolders, getTokenNarrative } from "./token.js";
 import { addLesson, getPerformanceHistory, listLessons, pinLesson, unpinLesson, clearAllLessons, clearPerformance, removeLessonsByKeyword } from "../lessons.js";
 import { getRecentDecisions, appendDecision } from "../decision-log.js";
-import { getState, setPriceTrigger, checkPriceTriggers, markTriggerFired } from "../state.js";
-import { getPoolDetail } from "./pancakeswap.js";
+import { getState, setPriceTrigger, checkPriceTriggers, markTriggerFired, trackPosition } from "../state.js";
+import { getPoolDetail, getPoolCurrentPrice, getMyPositions } from "./pancakeswap.js";
 
 const toolMap = {
   discover_pools: discoverPools,
@@ -60,17 +60,23 @@ const toolMap = {
     const positions = await getMyPositions({ force: true });
     const priceMap = {};
     for (const pos of positions.positions) {
-      try {
-        const poolAddr = pos.pool;
-        const detail = await getPoolDetail(poolAddr);
-        if (detail) {
-          priceMap[poolAddr] = detail.tick;
-        }
-      } catch {}
+      trackPosition({
+        position: pos.position,
+        pool: pos.pool,
+        pool_name: pos.pair,
+        token0Symbol: pos.token0Symbol,
+        token1Symbol: pos.token1Symbol,
+        minPrice: pos.minPrice,
+        maxPrice: pos.maxPrice,
+        currentPrice: pos.currentPrice,
+      });
+      if (pos.pool && pos.currentPrice != null) {
+        priceMap[pos.pool] = pos.currentPrice;
+      }
     }
     const triggered = checkPriceTriggers(priceMap);
     for (const t of triggered) markTriggerFired(t.position);
-    return { checked_positions: positions.total_positions, triggered };
+    return { checked_positions: positions.total_positions, auto_tracked: positions.positions.length, triggered };
   },
 };
 
