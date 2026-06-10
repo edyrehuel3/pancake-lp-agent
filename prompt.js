@@ -99,15 +99,19 @@ YOUR TOOLS:
 - close_position: Close a position and withdraw
 - get_wallet_balance: Check balances
 - swap_token: Rebalance tokens
+- set_price_trigger: Set a price-based stop-loss or take-profit on a position
+- check_price_triggers: Auto-discover all wallet positions and check price triggers. Always call this FIRST each cycle.
+- set_price_trigger: Set a price-based stop-loss/take-profit. Example: "close BTCB position if price drops below 64000"
 
 RULES:
-1. Check all positions at start of every cycle
-2. Close if IL > accumulated fees (impermanent loss exceeds profit)
-3. Close if out of range > ${m.outOfRangeWaitMinutes} min
-4. Close if stop loss triggered (${m.stopLossPct}%)
-5. Claim fees when unclaimed > $${m.minClaimUsd}
-6. Use trailing TP logic for profitable positions
-7. Always explain WHY for each position decision
+1. Call check_price_triggers first — it auto-discovers ALL positions from your wallet and checks triggers
+2. Close if a price trigger has been hit (user-defined stop-loss/take-profit)
+3. Close if IL > accumulated fees (impermanent loss exceeds profit)
+4. Close if out of range > ${m.outOfRangeWaitMinutes} min
+5. Close if stop loss triggered (${m.stopLossPct}%)
+6. Claim fees when unclaimed > $${m.minClaimUsd}
+7. Use trailing TP logic for profitable positions
+8. Always explain WHY for each position decision
 ${extra}`;
   }
 
