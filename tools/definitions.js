@@ -156,4 +156,29 @@ export const tools = [
       parameters: { type: "object", properties: { limit: { type: "number" } } }
     }
   },
+  {
+    type: "function",
+    function: {
+      name: "set_price_trigger",
+      description: "Set a price trigger on a position. When price hits your target, the management agent will close the position automatically. Example: close BTCB position if price drops below 64000 USDT.",
+      parameters: {
+        type: "object",
+        properties: {
+          position_address: { type: "string", description: "Position token ID" },
+          price: { type: "number", description: "Trigger price" },
+          direction: { type: "string", enum: ["below", "above"], description: "Close if price goes below or above this price" },
+          pair: { type: "string", description: "e.g. BTCB/USDT" },
+        },
+        required: ["position_address", "price", "direction"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_price_triggers",
+      description: "Check all price triggers and return which ones have been hit.",
+      parameters: { type: "object", properties: {} }
+    }
+  },
 ];
