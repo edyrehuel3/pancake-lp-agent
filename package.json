@@ -1,0 +1,29 @@
+{
+  "name": "pancake-lp-agent",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Autonomous PancakeSwap v3 LP agent for BNB Chain, powered by LLMs",
+  "main": "index.js",
+  "bin": {
+    "pancake-lp": "cli.js"
+  },
+  "scripts": {
+    "setup": "node setup.js",
+    "start": "node index.js",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:restart": "pm2 restart pancake-lp --update-env",
+    "pm2:logs": "pm2 logs pancake-lp --lines 100",
+    "dev": "DRY_RUN=true node index.js",
+    "test": "node --check index.js && node --check agent.js && node --check config.js"
+  },
+  "dependencies": {
+    "ethers": "^6.13.0",
+    "dotenv": "^16.4.0",
+    "node-cron": "^3.0.3",
+    "openai": "^4.73.0",
+    "jsonrepair": "^3.8.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
