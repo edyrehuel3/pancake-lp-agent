@@ -87,8 +87,9 @@ export const config = {
     strategy: u.strategy ?? "bid_ask",
   },
   schedule: {
-    managementIntervalMin: u.managementIntervalMin ?? 10,
+    managementIntervalMin: u.managementIntervalMin ?? 15,
     screeningIntervalMin: u.screeningIntervalMin ?? 30,
+    positionCheckIntervalMin: u.positionCheckIntervalMin ?? 15,
   },
   llm: {
     temperature: u.temperature ?? 0.373,
