@@ -1,6 +1,8 @@
 import { runAgentCycle, chat } from "./agent.js";
 import { getWalletBalances, getMyPositions, searchPools, swapToken } from "./tools/pancakeswap.js";
 import { discoverPools, getTopCandidates } from "./tools/screening.js";
+import { executeTool } from "./tools/executor.js";
+import { setPriceTrigger } from "./state.js";
 import { config } from "./config.js";
 import { log } from "./logger.js";
 
@@ -42,6 +44,22 @@ async function main() {
     case "start":
       await startAgent();
       break;
+    case "check-triggers":
+    case "check_price_triggers": {
+      const triggerResult = await executeTool("check_price_triggers", {});
+      console.log(JSON.stringify(triggerResult, null, 2));
+      break;
+    }
+    case "trigger": {
+      const [posAddr, direction, price] = args;
+      if (!posAddr || !direction || !price) {
+        console.log("Usage: node cli.js trigger <position_id> <below|above> <price>");
+        break;
+      }
+      const result = setPriceTrigger(posAddr, { price: Number(price), direction, triggered: false });
+      console.log(JSON.stringify(result, null, 2));
+      break;
+    }
     default:
       console.log(`
 PancakeSwap LP Agent CLI
@@ -50,12 +68,14 @@ Commands:
   screen       Run one screening cycle
   manage       Run one management cycle
   candidates   List top pool candidates
-  positions    List open positions
+  positions    List open positions (auto-discovered from wallet)
   balance      Check wallet balance
   search       Search pools by symbol
   config       Show current config
   chat         Chat with the agent
   start        Start autonomous agent
+  check-triggers  Check all positions and price triggers
+  trigger <id> <below|above> <price>  Set a price trigger on a position
 
 Flags:
   --dry-run    Skip on-chain transactions (set DRY_RUN=true in .env)
