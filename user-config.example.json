@@ -10,6 +10,7 @@
   "stopLossPct": -20,
   "takeProfitPct": 10,
   "outOfRangeWaitMinutes": 30,
-  "managementIntervalMin": 10,
-  "screeningIntervalMin": 30
+  "managementIntervalMin": 15,
+  "screeningIntervalMin": 30,
+  "positionCheckIntervalMin": 15
 }
