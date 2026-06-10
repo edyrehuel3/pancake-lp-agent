@@ -15,7 +15,8 @@ import {
 import { getTokenInfoTool, getTokenHolders, getTokenNarrative } from "./token.js";
 import { addLesson, getPerformanceHistory, listLessons, pinLesson, unpinLesson, clearAllLessons, clearPerformance, removeLessonsByKeyword } from "../lessons.js";
 import { getRecentDecisions, appendDecision } from "../decision-log.js";
-import { getState } from "../state.js";
+import { getState, setPriceTrigger, checkPriceTriggers, markTriggerFired } from "../state.js";
+import { getPoolDetail } from "./pancakeswap.js";
 
 const toolMap = {
   discover_pools: discoverPools,
@@ -52,6 +53,25 @@ const toolMap = {
     return { pool: pool_address, total_deploys: history.length, history };
   },
   add_pool_note: () => ({ saved: true }),
+  set_price_trigger: ({ position_address, price, direction, pair }) => {
+    return setPriceTrigger(position_address, { price: Number(price), direction, pair, triggered: false });
+  },
+  check_price_triggers: async () => {
+    const positions = await getMyPositions({ force: true });
+    const priceMap = {};
+    for (const pos of positions.positions) {
+      try {
+        const poolAddr = pos.pool;
+        const detail = await getPoolDetail(poolAddr);
+        if (detail) {
+          priceMap[poolAddr] = detail.tick;
+        }
+      } catch {}
+    }
+    const triggered = checkPriceTriggers(priceMap);
+    for (const t of triggered) markTriggerFired(t.position);
+    return { checked_positions: positions.total_positions, triggered };
+  },
 };
 
 const WRITE_TOOLS = new Set(["deploy_position", "claim_fees", "close_position", "swap_token"]);
