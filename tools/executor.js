@@ -11,12 +11,13 @@ import {
   searchPools,
   getActiveTick,
   studyTopLPers,
+  getPoolDetail as getPoolDetailOnChain,
+  getPoolCurrentPrice,
 } from "./pancakeswap.js";
 import { getTokenInfoTool, getTokenHolders, getTokenNarrative } from "./token.js";
 import { addLesson, getPerformanceHistory, listLessons, pinLesson, unpinLesson, clearAllLessons, clearPerformance, removeLessonsByKeyword } from "../lessons.js";
 import { getRecentDecisions, appendDecision } from "../decision-log.js";
 import { getState, setPriceTrigger, checkPriceTriggers, markTriggerFired, trackPosition } from "../state.js";
-import { getPoolDetail, getPoolCurrentPrice, getMyPositions } from "./pancakeswap.js";
 
 const toolMap = {
   discover_pools: discoverPools,
