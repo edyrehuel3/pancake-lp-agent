@@ -31,7 +31,7 @@ export function getWalletAddress() {
   return _walletAddress;
 }
 
-// ??? ABI snippets ??????????????????????????????????????????????
+// ─── ABI snippets ──────────────────────────────────────────────
 const NFPM_ABI = [
   "function positions(uint256 tokenId) view returns (uint96 nonce, address operator, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, uint128 tokensOwed0, uint128 tokensOwed1)",
   "function balanceOf(address owner) view returns (uint256)",
@@ -72,7 +72,7 @@ const ROUTER_ABI = [
   "function WETH9() external pure returns (address)",
 ];
 
-// ??? Helpers ???????????????????????????????????????????????????
+// ─── Helpers ───────────────────────────────────────────────────
 function isSameAddress(a, b) {
   return a?.toLowerCase() === b?.toLowerCase();
 }
@@ -101,7 +101,7 @@ function tickToPrice(tick, decimals0, decimals1) {
   return 1.0001 ** tick * (10 ** (decimals1 - decimals0));
 }
 
-// ??? Pool Discovery (Subgraph) ?????????????????????????????????
+// ─── Pool Discovery (Subgraph) ─────────────────────────────────
 export async function discoverV3Pools({ limit = 50, orderBy = "totalValueLockedUSD", orderDirection = "desc" } = {}) {
   const query = `{
     pools(first: ${limit}, orderBy: ${orderBy}, orderDirection: "${orderDirection}", where: { liquidity_gt: 0 }) {
@@ -160,7 +160,7 @@ export async function discoverV3Pools({ limit = 50, orderBy = "totalValueLockedU
   }
 }
 
-// ??? Get Pool Detail (on-chain) ????????????????????????????????
+// ─── Get Pool Detail (on-chain) ────────────────────────────────
 export async function getPoolDetail(poolAddress) {
   const pool = new ethers.Contract(normalizeAddress(poolAddress), POOL_ABI, getProvider());
   try {
@@ -184,14 +184,14 @@ export async function getPoolDetail(poolAddress) {
   }
 }
 
-// ??? Get Active Tick ????????????????????????????????????????????
+// ─── Get Active Tick ────────────────────────────────────────────
 export async function getActiveTick(poolAddress) {
   const detail = await getPoolDetail(poolAddress);
   if (!detail) throw new Error(`Pool ${poolAddress} not found`);
   return { tick: detail.tick, sqrtPriceX96: detail.sqrtPriceX96, feeTier: detail.feeTier };
 }
 
-// ??? Get Token Info ????????????????????????????????????????????
+// ─── Get Token Info ────────────────────────────────────────────
 export async function getTokenInfo(tokenAddress) {
   const token = new ethers.Contract(normalizeAddress(tokenAddress), ERC20_ABI, getProvider());
   try {
@@ -218,7 +218,7 @@ export async function getTokenBalance(tokenAddress, owner = null) {
   return ethers.formatUnits(balance, decimals);
 }
 
-// ??? Wallet Balance ????????????????????????????????????????????
+// ─── Wallet Balance ────────────────────────────────────────────
 export async function getWalletBalances() {
   const address = getWalletAddress();
   const bnb = await getProvider().getBalance(address);
@@ -239,11 +239,54 @@ export async function getWalletBalances() {
   return { sol: bnbFormatted, tokens };
 }
 
-// ??? Get Positions (on-chain via NFPM) ?????????????????????????
+// ─── Get Positions (on-chain via NFPM) ─────────────────────────
+export async function getPoolFromTokens(token0, token1, feeTier) {
+  const factory = new ethers.Contract(PANCAKESWAP.V3_FACTORY, FACTORY_ABI, getProvider());
+  try {
+    const poolAddr = await factory.getPool(token0, token1, feeTier);
+    if (poolAddr && poolAddr !== "0x0000000000000000000000000000000000000000") {
+      return normalizeAddress(poolAddr);
+    }
+  } catch {}
+  return null;
+}
+
+export async function getTokenSymbol(addr) {
+  try {
+    const t = new ethers.Contract(addr, ERC20_ABI, getProvider());
+    return await t.symbol();
+  } catch { return addr.slice(0, 6); }
+}
+
+async function getTokenDecimals(addr) {
+  try {
+    const t = new ethers.Contract(addr, ERC20_ABI, getProvider());
+    return Number(await t.decimals());
+  } catch { return 18; }
+}
+
+export async function getPoolCurrentPrice(poolAddress) {
+  const pool = new ethers.Contract(normalizeAddress(poolAddress), POOL_ABI, getProvider());
+  try {
+    const [slot, token0, token1] = await Promise.all([
+      pool.slot0(),
+      pool.token0(),
+      pool.token1(),
+    ]);
+    const d0 = await getTokenDecimals(token0);
+    const d1 = await getTokenDecimals(token1);
+    const price = sqrtPriceX96ToPrice(slot.sqrtPriceX96, d0, d1);
+    return { tick: Number(slot.tick), price, sqrtPriceX96: slot.sqrtPriceX96.toString(), token0, token1, decimals0: d0, decimals1: d1 };
+  } catch (error) {
+    log("price_error", `Pool price: ${error.message}`);
+    return null;
+  }
+}
+
 export async function getMyPositions({ force = false } = {}) {
   const nfpm = new ethers.Contract(PANCAKESWAP.V3_NFPM, NFPM_ABI, getProvider());
   const address = getWalletAddress();
-  let totalPositions = [];
+  let rawPositions = [];
 
   try {
     const balance = await nfpm.balanceOf(address);
@@ -253,7 +296,7 @@ export async function getMyPositions({ force = false } = {}) {
     for (let i = 0; i < count; i++) {
       const tokenId = await nfpm.tokenOfOwnerByIndex(address, i);
       const pos = await nfpm.positions(tokenId);
-      totalPositions.push({
+      rawPositions.push({
         tokenId: Number(tokenId),
         token0: pos.token0,
         token1: pos.token1,
@@ -261,38 +304,69 @@ export async function getMyPositions({ force = false } = {}) {
         tickLower: Number(pos.tickLower),
         tickUpper: Number(pos.tickUpper),
         liquidity: pos.liquidity.toString(),
-        feesOwed0: ethers.formatEther(pos.tokensOwed0),
-        feesOwed1: ethers.formatEther(pos.tokensOwed1),
+        feesOwed0: pos.tokensOwed0,
+        feesOwed1: pos.tokensOwed1,
       });
     }
   } catch (error) {
     log("positions_error", `Get positions: ${error.message}`);
   }
 
-  const openAddresses = totalPositions.map(p => p.tokenId.toString());
+  const openAddresses = rawPositions.map(p => p.tokenId.toString());
   syncOpenPositions(openAddresses);
 
-  const positions = await Promise.all(totalPositions.map(async (p) => {
-    const price = tickToPrice(p.tickLower, 18, 18);
+  const positions = await Promise.all(rawPositions.map(async (p) => {
+    const poolAddr = await getPoolFromTokens(p.token0, p.token1, p.feeTier);
+    const symbol0 = await getTokenSymbol(p.token0);
+    const symbol1 = await getTokenSymbol(p.token1);
+    const d0 = await getTokenDecimals(p.token0);
+    const d1 = await getTokenDecimals(p.token1);
+    const lowerPrice = tickToPrice(p.tickLower, d0, d1);
+    const upperPrice = tickToPrice(p.tickUpper, d0, d1);
+
+    let currentPrice = null;
+    let inRange = true;
+    let currentTick = null;
+    if (poolAddr) {
+      const state = await getPoolCurrentPrice(poolAddr);
+      if (state) {
+        currentPrice = state.price;
+        currentTick = state.tick;
+        inRange = state.tick >= p.tickLower && state.tick <= p.tickUpper;
+      }
+    }
+
+    const d0f = Number(await getTokenDecimals(p.token0)) || 18;
+    const d1f = Number(await getTokenDecimals(p.token1)) || 18;
+    const fees0 = Number(ethers.formatUnits(p.feesOwed0, d0f));
+    const fees1 = Number(ethers.formatUnits(p.feesOwed1, d1f));
+
     return {
       position: p.tokenId.toString(),
-      pool: `${p.token0.slice(0, 8)}-${p.token1.slice(0, 8)}`,
-      pair: `${p.token0.slice(0, 6)}/${p.token1.slice(0, 6)}`,
+      pool: poolAddr || `${symbol0}/${symbol1}`,
+      pair: `${symbol0}/${symbol1}`,
       token0: p.token0,
       token1: p.token1,
+      token0Symbol: symbol0,
+      token1Symbol: symbol1,
       feeTier: p.feeTier,
       tickLower: p.tickLower,
       tickUpper: p.tickUpper,
+      minPrice: lowerPrice,
+      maxPrice: upperPrice,
+      currentPrice,
+      currentTick,
+      in_range: inRange,
       liquidity: p.liquidity,
-      unclaimed_fees_usd: parseFloat(p.feesOwed0) + parseFloat(p.feesOwed1),
-      in_range: true,
+      unclaimedFee0: fees0,
+      unclaimedFee1: fees1,
     };
   }));
 
   return { total_positions: positions.length, positions };
 }
 
-// ??? Compute Price Range ???????????????????????????????????????
+// ─── Compute Price Range ───────────────────────────────────────
 export function computePriceRange(poolDetail, rangePct = 10) {
   const lowerPct = 1 - rangePct / 100;
   const upperPct = 1 + rangePct / 100;
@@ -309,7 +383,7 @@ export function computePriceRange(poolDetail, rangePct = 10) {
   };
 }
 
-// ??? Deploy Position ???????????????????????????????????????????
+// ─── Deploy Position ───────────────────────────────────────────
 export async function deployPosition({
   pool_address,
   token0,
@@ -376,7 +450,7 @@ export async function deployPosition({
   };
 
   log("deploy", `Minting position: token0=${amount0 || 0} ${token0Detail.symbol}, token1=${amount1 || 0} ${token1Detail.symbol}`);
-  log("deploy", `Range: tick ${tickLower} ? ${tickUpper} (${price_lower} ? ${price_upper})`);
+  log("deploy", `Range: tick ${tickLower} → ${tickUpper} (${price_lower} → ${price_upper})`);
 
   try {
     const tx = await nfpm.mint(mintParams, { gasLimit: 500000 });
@@ -419,7 +493,7 @@ export async function deployPosition({
       pool: pool_address,
       position: tokenId,
       summary: `Deployed ${amount0 || 0} ${token0Detail.symbol} + ${amount1 || 0} ${token1Detail.symbol}`,
-      reason: `Range ${price_lower}?${price_upper}`,
+      reason: `Range ${price_lower}→${price_upper}`,
     });
 
     return {
@@ -435,7 +509,7 @@ export async function deployPosition({
   }
 }
 
-// ??? Close Position ????????????????????????????????????????????
+// ─── Close Position ────────────────────────────────────────────
 export async function closePosition({ position_address, collect_fees = true }) {
   if (process.env.DRY_RUN === "true") {
     return { dry_run: true, would_close: { position_address } };
@@ -507,7 +581,7 @@ export async function closePosition({ position_address, collect_fees = true }) {
   }
 }
 
-// ??? Claim Fees ????????????????????????????????????????????????
+// ─── Claim Fees ────────────────────────────────────────────────
 export async function claimFees({ position_address }) {
   if (process.env.DRY_RUN === "true") {
     return { dry_run: true, would_claim: { position_address } };
@@ -542,7 +616,7 @@ export async function claimFees({ position_address }) {
   }
 }
 
-// ??? Swap Token ????????????????????????????????????????????????
+// ─── Swap Token ────────────────────────────────────────────────
 export async function swapToken({ input_mint, output_mint, amount }) {
   if (process.env.DRY_RUN === "true") {
     return { dry_run: true, would_swap: { input_mint, output_mint, amount } };
@@ -584,7 +658,7 @@ export async function swapToken({ input_mint, output_mint, amount }) {
   }
 }
 
-// ??? Search Pools (via subgraph) ???????????????????????????????
+// ─── Search Pools (via subgraph) ───────────────────────────────
 export async function searchPools({ query, limit = 10 }) {
   const q = query.toLowerCase();
   const queryStr = `{
